@@ -24,11 +24,6 @@ export const Span = styled.span`
 export const ProBadge = styled(Span)`
   background-color: ${theme.special.default};
   background-image: ${Gradient(theme.special.alt, theme.special.default)};
-  cursor: pointer;
-
-  &:hover {
-    cursor: pointer;
-  }
 `;
 
 export const TeamBadge = styled(Span)`
@@ -39,30 +34,9 @@ export const TeamBadge = styled(Span)`
 export const BlockedBadge = styled(Span)`
   background-color: ${theme.warn.alt};
   background-image: ${Gradient(theme.warn.alt, theme.warn.default)};
-  cursor: pointer;
-
-  &:hover {
-    cursor: pointer;
-  }
 `;
 
 export const PendingBadge = styled(Span)`
   background-color: ${theme.special.alt};
   background-image: ${Gradient(theme.special.alt, theme.special.default)};
-  cursor: pointer;
-
-  &:hover {
-    cursor: pointer;
-  }
-`;
-
-export const DefaultPaymentMethodBadge = styled(Span)`
-  background-color: ${theme.space.default};
-  background-image: ${Gradient(theme.space.default, theme.space.default)};
-  cursor: pointer;
-  margin-left: 8px;
-
-  &:hover {
-    cursor: pointer;
-  }
 `;

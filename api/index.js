@@ -14,72 +14,15 @@ import toobusy from 'shared/middlewares/toobusy';
 import addSecurityMiddleware from 'shared/middlewares/security';
 import csrf from 'shared/middlewares/csrf';
 import { init as initPassport } from './authentication.js';
-import type { DBUser } from 'shared/types';
-
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-
-// Initialize authentication
-initPassport();
-
-// API server
-const app = express();
-
-// Trust the now proxy
-app.set('trust proxy', true);
-
-// Return the request if the server is too busy
-app.use(toobusy);
-
-// Security middleware.
-addSecurityMiddleware(app);
-
-if (process.env.NODE_ENV === 'production' && !process.env.FORCE_DEV) {
-  app.use(csrf);
-}
-
-// Send all responses as gzip
-app.use(compression());
-
+import apolloServer from './apollo-server';
+import { corsOptions } from 'shared/middlewares/cors';
+import errorHandler from 'shared/middlewares/error-handler';
 import middlewares from './routes/middlewares';
-app.use(middlewares);
-
 import authRoutes from './routes/auth';
-app.use('/auth', authRoutes);
-
 import apiRoutes from './routes/api';
-app.use('/api', apiRoutes);
-
-// $FlowIssue
-app.use(
-  (
-    err: Error,
-    req: express$Request,
-    res: express$Response,
-    next: express$NextFunction
-  ) => {
-    if (err) {
-      console.error(err);
-      res
-        .status(500)
-        .send(
-          'Oops, something went wrong! Our engineers have been alerted and will fix this asap.'
-        );
-      Raven.captureException(err);
-    } else {
-      return next();
-    }
-  }
-);
-
-app.use('/', (req: express$Request, res: express$Response) => {
-  res.redirect(
-    process.env.NODE_ENV === 'production' && !process.env.FORCE_DEV
-      ? 'https://spectrum.chat'
-      : 'http://localhost:3000'
-  );
-});
-
+import type { DBUser } from 'shared/types';
 import type { Loader } from './loaders/types';
+
 export type GraphQLContext = {
   user: DBUser,
   updateCookieUserData: (data: DBUser) => Promise<void>,
@@ -88,41 +31,52 @@ export type GraphQLContext = {
   },
 };
 
-const server = createServer(app);
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
-// Create subscriptions server at /websocket
-import createSubscriptionsServer from './routes/create-subscription-server';
-const subscriptionsServer = createSubscriptionsServer(server, '/websocket');
+initPassport();
 
-// Start API wrapped in Apollo Engine
-const engine = new ApolloEngine({
-  logging: {
-    level: 'WARN',
-  },
-  apiKey: process.env.APOLLO_ENGINE_API_KEY,
-  // Only send perf data to the remote server in production
-  reporting: {
-    disabled: process.env.NODE_ENV !== 'production',
-    hostname: process.env.NOW_URL || undefined,
-    privateHeaders: ['authorization', 'Authorization', 'AUTHORIZATION'],
-  },
-  queryCache: {
-    // Don't cache logged-in user responses
-    privateFullQueryStore: 'disabled',
-  },
-  sessionAuth: {
-    cookie: 'session',
-    // TODO(@mxstbr): Ping Apollo to note that we need both of those
-    // header: 'Authorization'
-  },
+const app = express();
+
+// Trust the now proxy
+app.set('trust proxy', true);
+app.use(toobusy);
+
+// Security middleware.
+addSecurityMiddleware(app, { enableNonce: false, enableCSP: false });
+if (process.env.NODE_ENV === 'production' && !process.env.FORCE_DEV) {
+  app.use(csrf);
+}
+
+// All other middlewares
+app.use(compression());
+app.use(middlewares);
+
+// Routes
+app.use('/auth', authRoutes);
+app.use('/api', apiRoutes);
+
+// GraphQL middleware
+apolloServer.applyMiddleware({ app, path: '/api', cors: corsOptions });
+
+// Redirect a request to the root path to the main app
+app.use('/', (req: express$Request, res: express$Response) => {
+  res.redirect(
+    process.env.NODE_ENV === 'production' && !process.env.FORCE_DEV
+      ? 'https://spectrum.chat'
+      : 'http://localhost:3000'
+  );
 });
 
-engine.listen({
-  port: PORT,
-  httpServer: server,
-  graphqlPaths: ['/api'],
-});
-debug(`GraphQL server running at http://localhost:${PORT}/api`);
+// $FlowIssue
+app.use(errorHandler);
+
+// We need to create a separate HTTP server to handle GraphQL subscriptions via websockets
+const httpServer = createServer(app);
+apolloServer.installSubscriptionHandlers(httpServer);
+
+httpServer.listen(PORT);
+
+debug(`GraphQL API running at http://localhost:${PORT}/api`);
 
 process.on('unhandledRejection', async err => {
   console.error('Unhandled rejection', err);

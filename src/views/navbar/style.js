@@ -4,7 +4,7 @@ import styled, { css } from 'styled-components';
 import Link from 'src/components/link';
 import { Transition, FlexRow, hexa, zIndex } from 'src/components/globals';
 import { UserAvatar } from 'src/components/avatar';
-import { isDesktopApp } from 'src/helpers/is-desktop-app';
+import { isDesktopApp } from 'src/helpers/desktop-app-utils';
 
 export const Nav = styled.nav`
   display: grid;
@@ -211,6 +211,15 @@ export const DropTab = styled(FlexRow)`
   }
 `;
 
+export const Reputation = styled.div`
+  display: flex;
+  grid-area: icon;
+  align-items: center;
+  padding-right: 16px;
+  font-size: 14px;
+  font-weight: 700;
+`;
+
 export const Logo = styled(Tab)`
   grid-area: logo;
   padding: ${isDesktopApp() ? '0 32px 0 4px' : '0 24px 0 4px'};
@@ -260,7 +269,7 @@ export const ExploreTab = styled(Tab)`
     `};
 
   ${props =>
-    props.loggedOut &&
+    props.loggedout &&
     css`
       grid-area: explore;
     `} ${Label} {

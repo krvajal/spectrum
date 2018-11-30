@@ -2,14 +2,11 @@
 require('now-env');
 const IS_PROD = process.env.NODE_ENV === 'production';
 const IS_TESTING = process.env.TEST_DB;
-import {
-  PAYMENTS_COMMUNITY_ID,
-  BRIAN_ID,
-} from '../../migrations/seed/default/constants';
+import { BRIAN_ID } from '../../migrations/seed/default/constants';
 import { Router } from 'express';
 const jwt = require('jsonwebtoken');
 const emailRouter = Router();
-import { updateUserEmail } from '../../models/user';
+import { updateUserEmail } from 'shared/db/queries/user';
 import { unsubscribeUserFromEmailNotification } from '../../models/usersSettings';
 import { updateThreadNotificationStatusForUser } from '../../models/usersThreads';
 import { updateDirectMessageThreadNotificationStatusForUser } from '../../models/usersDirectMessageThreads';
@@ -174,12 +171,8 @@ emailRouter.get('/validate', (req, res) => {
       return updateCommunityAdministratorEmail(communityId, email, userId).then(
         community =>
           IS_PROD
-            ? res.redirect(
-                `https://spectrum.chat/${community.slug}/settings/billing`
-              )
-            : res.redirect(
-                `http://localhost:3000/${community.slug}/settings/billing`
-              )
+            ? res.redirect(`https://spectrum.chat/${community.slug}/settings`)
+            : res.redirect(`http://localhost:3000/${community.slug}/settings`)
       );
     } catch (err) {
       console.error(err);
@@ -197,8 +190,19 @@ emailRouter.get('/validate', (req, res) => {
       const rootRedirect = IS_PROD
         ? `https://spectrum.chat`
         : `http://localhost:3000`;
-      if (!user.username) return res.redirect(rootRedirect);
-      return res.redirect(`${rootRedirect}/users/${user.username}/settings`);
+
+      req.login(user, err => {
+        if (err) {
+          return res
+            .status(400)
+            .send(
+              'We ran into an issue validating this email address. You can re-enter your email address in your community settings to resend a confirmation email, or get in touch with us at hi@spectrum.chat.'
+            );
+        }
+
+        if (!user.username) return res.redirect(rootRedirect);
+        return res.redirect(`${rootRedirect}/users/${user.username}/settings`);
+      });
     });
   } catch (err) {
     console.error(err);
@@ -209,25 +213,5 @@ emailRouter.get('/validate', (req, res) => {
       );
   }
 });
-
-if (IS_TESTING) {
-  // $FlowIssue
-  emailRouter.get('/validate/test-payments/verify', (req, res) => {
-    return updateCommunityAdministratorEmail(
-      PAYMENTS_COMMUNITY_ID,
-      'briandlovin@gmail.com',
-      BRIAN_ID
-    ).then(() =>
-      res.redirect('http://localhost:3000/payments/settings/billing')
-    );
-  });
-
-  // $FlowIssue
-  emailRouter.get('/validate/test-payments/reset', (req, res) => {
-    return resetCommunityAdministratorEmail(PAYMENTS_COMMUNITY_ID).then(() =>
-      res.redirect('http://localhost:3000/payments/settings/billing')
-    );
-  });
-}
 
 export default emailRouter;

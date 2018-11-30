@@ -129,6 +129,7 @@ export const FullDescription = styled.div`
 
   p {
     white-space: pre-wrap;
+    margin-bottom: 24px;
   }
 
   a {
@@ -141,7 +142,7 @@ export const FullDescription = styled.div`
   }
 
   > ${ReputationWrapper} {
-    margin-top: 16px;
+    margin-top: 0px;
 
     span {
       margin-left: 4px;
@@ -153,16 +154,19 @@ export const FullDescription = styled.div`
 
 export const ExtLink = styled(FlexRow)`
   align-items: center;
-  color: ${theme.brand.alt};
-  font-weight: 600;
+  font-weight: 400;
   transition: ${Transition.hover.off};
   ${Truncate};
   font-size: 16px;
   margin: 12px 0;
+  color: ${theme.text.alt};
+
+  a {
+    color: ${theme.text.secondary};
+  }
 
   > a:hover {
-    text-decoration: underline;
-    transition: ${Transition.hover.on};
+    color: ${theme.text.default};
   }
 
   > div {
@@ -206,7 +210,7 @@ export const MetaList = styled.ul``;
 export const MetaListItem = styled.li`
   list-style-type: none;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: ${theme.text.alt};
   padding: 8px 0;
   border-top: 2px solid ${theme.bg.border};
@@ -235,7 +239,7 @@ export const Label = styled.span`
 `;
 
 export const Count = styled.span`
-  font-weight: 700;
+  font-weight: 500;
 `;
 
 export const CoverLink = styled(ProfileHeaderLink)`
@@ -280,28 +284,6 @@ export const ThreadProfileCard = styled(ProfileCard)`
   border-radius: 8px;
   box-shadow: ${Shadow.low} ${({ theme }) => hexa(theme.text.default, 0.1)};
 `;
-
-export const ProUpgrade = styled.div`
-  margin: 16px;
-  margin-top: 0;
-  display: flex;
-  align-items: stretch;
-  align-content: stretch;
-  justify-content: center;
-
-  button {
-    width: 100%;
-    text-align: center;
-  }
-`;
-
-// export const ReputationContainer = styled.div`
-//   border-top: 2px solid ${theme.bg.border};
-//   padding: 12px 0;
-//   margin: 0 16px;
-//   display: flex;
-//   color: ${theme.text.alt};
-// `;
 
 export const CoverPhoto = styled.div`
   position: relative;
@@ -357,4 +339,14 @@ export const MessageButtonContainer = styled.div`
     justify-content: center;
     text-align: center;
   }
+`;
+
+export const OnlineIndicator = styled.span`
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background: ${props => (props.offline ? theme.text.alt : theme.success.alt)};
+  margin-right: 12px;
+  display: inline-block;
+  margin-left: 6px;
 `;

@@ -15,6 +15,7 @@ import { connect } from 'react-redux';
 import compose from 'recompose/compose';
 import { CLIENT_URL } from 'src/api/constants';
 import Icon from 'src/components/icons';
+import getThreadLink from 'src/helpers/get-thread-link';
 import type { Dispatch } from 'redux';
 import {
   SidebarSection,
@@ -38,6 +39,7 @@ import {
 } from '../style';
 import { ErrorBoundary } from 'src/components/error';
 import type { ContextRouter } from 'react-router';
+import DesktopAppUpsell from './desktopAppUpsell';
 
 type RecommendedThread = {
   node: GetThreadType,
@@ -80,11 +82,14 @@ class Sidebar extends React.Component<Props> {
         .sort((a, b) => b.messageCount - a.messageCount)
         .slice(0, 5);
 
-    const loginUrl = thread
-      ? thread.community.brandedLogin.isEnabled
-        ? `/${thread.community.slug}/login?r=${CLIENT_URL}/thread/${thread.id}`
-        : `/login?r=${CLIENT_URL}/thread/${thread.id}`
-      : '/login';
+    const loginUrl =
+      thread && thread.community
+        ? thread.community.brandedLogin.isEnabled
+          ? `/${thread.community.slug}/login?r=${CLIENT_URL}/${getThreadLink(
+              thread
+            )}`
+          : `/login?r=${CLIENT_URL}/${getThreadLink(thread)}`
+        : '/login';
 
     return (
       <ThreadSidebarView>
@@ -189,11 +194,15 @@ class Sidebar extends React.Component<Props> {
           )}
         </ErrorBoundary>
 
+        <DesktopAppUpsell />
+
         <ErrorBoundary fallbackComponent={null}>
           {Array.isArray(threadsToRender) ? (
             threadsToRender.length > 0 && (
               <SidebarSection data-cy="thread-sidebar-more-threads">
-                <SidebarSectionTitle>More conversations</SidebarSectionTitle>
+                <SidebarSectionTitle>
+                  More active conversations
+                </SidebarSectionTitle>
                 <SidebarRelatedThreadList>
                   {threadsToRender.map(t => {
                     return (

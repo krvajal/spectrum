@@ -1,7 +1,6 @@
 // @flow
 import type {
   DBThread,
-  DBInvoice,
   DBReaction,
   DBThreadReaction,
   DBChannel,
@@ -12,13 +11,11 @@ import type {
   DBNotificationsJoin,
   FileUpload,
 } from '../types';
-import type { RawSource } from '../stripe/types/source';
-import type { RawCharge } from '../stripe/types/charge';
-import type { RawInvoice } from '../stripe/types/invoice';
 import type {
   Recipient,
   NewMessageNotificationEmailThread,
 } from 'athena/queues/new-message-in-thread/buffer-email';
+import type { CleanDigestThread, Timeframe } from 'chronos/types';
 
 export type Job<JobData> = {|
   id: string,
@@ -27,11 +24,16 @@ export type Job<JobData> = {|
   finished: () => Promise<void>,
 |};
 
-type JobOptions = {|
+export type JobOptions = {|
   jobId?: number | string,
   delay?: number,
   removeOnComplete?: boolean,
   removeOnFail?: boolean,
+  attempts?: number,
+  repeat?: {
+    cron: string,
+    tz: 'America/Los_Angeles',
+  },
 |};
 
 interface BullQueue<JobData> {
@@ -185,12 +187,11 @@ export type SendNewDirectMessageEmailJobData = {
   recipient: {
     email: string,
     name: string,
-    username: string,
+    username: ?string,
     userId: string,
   },
   user: {
-    displayName: string,
-    username: string,
+    username: ?string,
     id: string,
     name: string,
   },
@@ -233,8 +234,6 @@ export type UserThreadLastSeenJobData = {
   userId: string,
   timestamp: number | Date,
 };
-
-export type InvoiceJobData = { invoice: DBInvoice };
 
 export type ReactionNotificationJobData = {
   reaction: DBReaction,
@@ -317,19 +316,6 @@ export type ReputationEventJobData = {
   entityId: string,
 };
 
-export type StripeWebhookEventJobData = {
-  record: Object,
-  type?: string,
-};
-
-export type StripeCommunityPaymentEventJobData = {
-  communityId: string,
-};
-
-export type StripePaymentSucceededOrFailedEventJobData = {
-  record: RawCharge | RawInvoice,
-};
-
 export type AdminCommunityCreatedEmailJobData = {
   user: DBUser,
   community: DBCommunity,
@@ -378,29 +364,6 @@ export type PushNotificationsJobData = {
   notification: DBNotificationsJoin,
 };
 
-export type PaymentSucceededEmailJobData = {
-  invoice: Object,
-  community: DBCommunity,
-  source: Object,
-  to: string,
-};
-
-export type PaymentFailedEmailJobData = {
-  charge: Object,
-  community: DBCommunity,
-  to: string,
-};
-
-export type CardExpiringWarningEmailJobData = {
-  source: RawSource,
-  community: DBCommunity,
-  to: string,
-};
-
-export type StripeCardExpiringWarningJobData = {
-  record: Object,
-};
-
 export type SendSlackInvitationsJobData = {
   communityId: string,
   userId: string,
@@ -428,13 +391,46 @@ export type CalculateThreadScoreJobData = {
   threadId: string,
 };
 
+export type SearchIndexJobData = {
+  id: string,
+  type: 'message' | 'thread' | 'user' | 'community',
+  event: 'created' | 'edited' | 'deleted' | 'moved',
+};
+
+export type AdminActiveCommunityReportEmailJobData = {
+  dacCount: number,
+  wacCount: number,
+  macCount: number,
+  newDac: Array<string>,
+  newWac: Array<string>,
+  newMac: Array<string>,
+  lostDac: Array<string>,
+  lostWac: Array<string>,
+  lostMac: Array<string>,
+};
+
+export type ProcessIndividualDigestJobData = {
+  userId: string,
+  topCommunityIds: Array<string>,
+  timeframe: Timeframe,
+};
+
+export type SendDigestEmailJobData = {
+  email: ?string,
+  userId: string,
+  username: ?string,
+  user: DBUser,
+  threads: Array<CleanDigestThread>,
+  reputationString: string,
+  communities: ?Array<DBCommunity>,
+  timeframe: Timeframe,
+};
+
 export type Queues = {
   // athena
   sendThreadNotificationQueue: BullQueue<ThreadNotificationJobData>,
   sendCommunityNotificationQueue: BullQueue<CommunityNotificationJobData>,
   trackUserThreadLastSeenQueue: BullQueue<UserThreadLastSeenJobData>,
-  sendProInvoicePaidNotificationQueue: BullQueue<InvoiceJobData>,
-  sendCommunityInvoicePaidNotificationQueue: BullQueue<InvoiceJobData>,
   sendReactionNotificationQueue: BullQueue<ReactionNotificationJobData>,
   sendThreadReactionNotificationQueue: BullQueue<
     ThreadReactionNotificationJobData
@@ -470,13 +466,6 @@ export type Queues = {
   sendAdministratorEmailValidationEmailQueue: BullQueue<
     AdministratorEmailValidationEmailJobData
   >,
-  sendCommunityPaymentSucceededEmailQueue: BullQueue<
-    PaymentSucceededEmailJobData
-  >,
-  sendCommunityPaymentFailedEmailQueue: BullQueue<PaymentFailedEmailJobData>,
-  sendCommunityCardExpiringWarningEmailQueue: BullQueue<
-    CardExpiringWarningEmailJobData
-  >,
   sendNewMessageEmailQueue: BullQueue<SendNewMessageEmailJobData>,
   bufferNewMessageEmailQueue: BullQueue<BufferNewMessageEmailJobData>,
   sendNewDirectMessageEmailQueue: BullQueue<SendNewDirectMessageEmailJobData>,
@@ -497,68 +486,18 @@ export type Queues = {
   sendThreadCreatedNotificationEmailQueue: BullQueue<
     SendNewThreadNotificationEmailJobData
   >,
+  sendDigestEmailQueue: BullQueue<SendDigestEmailJobData>,
 
   // mercury
   processReputationEventQueue: BullQueue<ReputationEventJobData>,
   calculateThreadScoreQueue: BullQueue<CalculateThreadScoreJobData>,
 
-  // pluto
-  stripeChargeWebhookEventQueue: BullQueue<StripeWebhookEventJobData>,
-  stripeCustomerWebhookEventQueue: BullQueue<StripeWebhookEventJobData>,
-  stripeSourceWebhookEventQueue: BullQueue<StripeWebhookEventJobData>,
-  stripeInvoiceWebhookEventQueue: BullQueue<StripeWebhookEventJobData>,
-  stripeSubscriptionWebhookEventQueue: BullQueue<StripeWebhookEventJobData>,
-  stripeDiscountWebhookEventQueue: BullQueue<StripeWebhookEventJobData>,
-  stripeCommunityAdministratorEmailChangedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityAnalyticsAddedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityAnalyticsRemovedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityCreatedQueue: BullQueue<StripeCommunityPaymentEventJobData>,
-  stripeCommunityDeletedQueue: BullQueue<StripeCommunityPaymentEventJobData>,
-  stripeCommunityEditedQueue: BullQueue<StripeCommunityPaymentEventJobData>,
-  stripeCommunityModeratorAddedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityModeratorRemovedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityPrioritySupportAddedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityPrioritySupportRemovedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityPrivateChannelAddedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityPrivateChannelRemovedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityOpenSourceStatusActivatedQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityOpenSourceStatusEnabledQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripeCommunityOpenSourceStatusDisabledQueue: BullQueue<
-    StripeCommunityPaymentEventJobData
-  >,
-  stripePaymentSucceededQueue: BullQueue<
-    StripePaymentSucceededOrFailedEventJobData
-  >,
-  stripePaymentFailedQueue: BullQueue<
-    StripePaymentSucceededOrFailedEventJobData
-  >,
-  stripeCardExpiringWarningQueue: BullQueue<StripeCardExpiringWarningJobData>,
-
   // analytics
   trackQueue: BullQueue<TrackAnalyticsData>,
   identifyQueue: BullQueue<IdentifyAnalyticsData>,
+
+  // vulcan
+  searchQueue: BullQueue<SearchIndexJobData>,
 
   // admin
   _adminSendCommunityCreatedEmailQueue: BullQueue<
@@ -573,4 +512,14 @@ export type Queues = {
   _adminProcessUserSpammingThreadsQueue: BullQueue<
     AdminUserSpammingThreadsJobData
   >,
+  _adminSendActiveCommunityReportEmailQueue: BullQueue<
+    AdminActiveCommunityReportEmailJobData
+  >,
+
+  // chronos
+  weeklyDigestQueue: BullQueue<void>,
+  dailyDigestQueue: BullQueue<void>,
+  processIndividualDigestQueue: BullQueue<ProcessIndividualDigestJobData>,
+  dailyCoreMetricsQueue: BullQueue<void>,
+  activeCommunityReportQueue: BullQueue<void>,
 };

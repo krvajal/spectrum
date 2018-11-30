@@ -1,5 +1,6 @@
 // @flow
 import * as React from 'react';
+import compose from 'recompose/compose';
 import { Route, Switch, Redirect } from 'react-router';
 import styled, { ThemeProvider } from 'styled-components';
 import Loadable from 'react-loadable';
@@ -9,24 +10,27 @@ import generateMetaInfo from 'shared/generate-meta-info';
 import './reset.css.js';
 import { theme } from 'shared/theme';
 import { FlexCol } from './components/globals';
-import ScrollManager from './components/scrollManager';
-import Head from './components/head';
-import ModalRoot from './components/modals/modalRoot';
-import Gallery from './components/gallery';
-import Toasts from './components/toasts';
-import { Loading, LoadingScreen } from './components/loading';
-import LoadingDashboard from './views/dashboard/components/dashboardLoading';
-import Composer from './components/composer';
-import AuthViewHandler from './views/authViewHandler';
-import signedOutFallback from './helpers/signed-out-fallback';
-import PrivateChannelJoin from './views/privateChannelJoin';
-import PrivateCommunityJoin from './views/privateCommunityJoin';
-import ThreadSlider from './views/threadSlider';
-import Navbar from './views/navbar';
-import Status from './views/status';
-import Login from './views/login';
-import DirectMessages from './views/directMessages';
-import { FullscreenThreadView } from './views/thread';
+import ScrollManager from 'src/components/scrollManager';
+import Head from 'src/components/head';
+import ModalRoot from 'src/components/modals/modalRoot';
+import Gallery from 'src/components/gallery';
+import Toasts from 'src/components/toasts';
+import { Loading, LoadingScreen } from 'src/components/loading';
+import Composer from 'src/components/composer';
+import AuthViewHandler from 'src/views/authViewHandler';
+import signedOutFallback from 'src/helpers/signed-out-fallback';
+import PrivateChannelJoin from 'src/views/privateChannelJoin';
+import PrivateCommunityJoin from 'src/views/privateCommunityJoin';
+import ThreadSlider from 'src/views/threadSlider';
+import Navbar from 'src/views/navbar';
+import Status from 'src/views/status';
+import Login from 'src/views/login';
+import DirectMessages from 'src/views/directMessages';
+import { FullscreenThreadView } from 'src/views/thread';
+import ThirdPartyContext from 'src/components/thirdPartyContextSetting';
+import { withCurrentUser } from 'src/components/withCurrentUser';
+import type { GetUserType } from 'shared/graphql/queries/user/getUser';
+import RedirectOldThreadRoute from './views/thread/redirect-old-route';
 
 /* prettier-ignore */
 const Explore = Loadable({
@@ -61,7 +65,7 @@ const ChannelView = Loadable({
 /* prettier-ignore */
 const Dashboard = Loadable({
   loader: () => import('./views/dashboard'/* webpackChunkName: "Dashboard" */),
-  loading: ({ isLoading }) => isLoading && <LoadingDashboard />,
+  loading: ({ isLoading }) => isLoading && null,
 });
 
 /* prettier-ignore */
@@ -150,29 +154,13 @@ const ComposerFallback = signedOutFallback(Composer, () => (
 ));
 
 type Props = {
-  currentUser: ?Object,
+  currentUser: ?GetUserType,
+  isLoadingCurrentUser: boolean,
 };
 
 class Routes extends React.Component<Props> {
-  componentDidMount() {
-    const AMPLITUDE_API_KEY =
-      process.env.NODE_ENV === 'production'
-        ? process.env.AMPLITUDE_API_KEY
-        : process.env.AMPLITUDE_API_KEY_DEVELOPMENT;
-    if (AMPLITUDE_API_KEY) {
-      try {
-        window.amplitude.getInstance().init(AMPLITUDE_API_KEY);
-        window.amplitude.getInstance().setOptOut(false);
-      } catch (err) {
-        console.warn('Unable to start tracking', err.message);
-      }
-    } else {
-      console.warn('No amplitude api key, tracking in development mode');
-    }
-  }
-
   render() {
-    const { currentUser } = this.props;
+    const { currentUser, isLoadingCurrentUser } = this.props;
     const { title, description } = generateMetaInfo();
 
     return (
@@ -189,6 +177,7 @@ class Routes extends React.Component<Props> {
                 have a username set.
               */}
               <AuthViewHandler>{() => null}</AuthViewHandler>
+              <ThirdPartyContext />
               <Status />
               <Route component={Navbar} />
 
@@ -213,11 +202,10 @@ class Routes extends React.Component<Props> {
                 <Route path="/terms.html" component={Pages} />
                 <Route path="/privacy.html" component={Pages} />
                 <Route path="/code-of-conduct" component={Pages} />
-                <Route path="/pricing/concierge" component={Pages} />
-                <Route path="/pricing" component={Pages} />
                 <Route path="/support" component={Pages} />
                 <Route path="/features" component={Pages} />
                 <Route path="/faq" component={Pages} />
+                <Route path="/apps" component={Pages} />
 
                 {/* App Pages */}
                 <Route path="/new/community" component={NewCommunityFallback} />
@@ -239,7 +227,7 @@ class Routes extends React.Component<Props> {
                 <Route path="/messages" component={MessagesFallback} />
                 <Route
                   path="/thread/:threadId"
-                  component={FullscreenThreadView}
+                  component={RedirectOldThreadRoute}
                 />
                 <Route path="/thread" render={() => <Redirect to="/" />} />
                 <Route exact path="/users" render={() => <Redirect to="/" />} />
@@ -261,7 +249,7 @@ class Routes extends React.Component<Props> {
                       <Redirect
                         to={`/users/${currentUser.username}/settings`}
                       />
-                    ) : (
+                    ) : isLoadingCurrentUser ? null : (
                       <Login redirectPath={`${CLIENT_URL}/me/settings`} />
                     )
                   }
@@ -271,7 +259,7 @@ class Routes extends React.Component<Props> {
                   render={() =>
                     currentUser && currentUser.username ? (
                       <Redirect to={`/users/${currentUser.username}`} />
-                    ) : (
+                    ) : isLoadingCurrentUser ? null : (
                       <Login redirectPath={`${CLIENT_URL}/me`} />
                     )
                   }
@@ -307,6 +295,16 @@ class Routes extends React.Component<Props> {
                   component={CommunityLoginFallback}
                 />
                 <Route
+                  // NOTE(@mxstbr): This custom path regexp matches threadId correctly in all cases, no matter if we prepend it with a custom slug or not.
+                  // Imagine our threadId is "id-123-id" (similar in shape to an actual UUID)
+                  // - /id-123-id => id-123-id, easy start that works
+                  // - /some-custom-slug~id-123-id => id-123-id, custom slug also works
+                  // - /~id-123-id => id-123-id => id-123-id, empty custom slug also works
+                  // - /some~custom~slug~id-123-id => id-123-id, custom slug with delimiter char in it (~) also works! :tada:
+                  path="/:communitySlug/:channelSlug/(.*~)?:threadId"
+                  component={FullscreenThreadView}
+                />
+                <Route
                   path="/:communitySlug/:channelSlug"
                   component={ChannelView}
                 />
@@ -320,6 +318,4 @@ class Routes extends React.Component<Props> {
   }
 }
 
-// const map = state => ({ currentUser: state.users.currentUser });
-// $FlowFixMe
-export default Routes;
+export default compose(withCurrentUser)(Routes);

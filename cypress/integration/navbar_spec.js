@@ -7,7 +7,7 @@ const coreSplashPageNavbarLinksVisible = () => {
 
   cy.get('[data-cy="navbar-splash-features"]').should('be.visible');
 
-  cy.get('[data-cy="navbar-splash-pricing"]').should('be.visible');
+  cy.get('[data-cy="navbar-splash-apps"]').should('be.visible');
 
   cy.get('[data-cy="navbar-splash-support"]').should('be.visible');
 };
@@ -51,9 +51,6 @@ const checkSignedOutNavbarRenders = () => {
 };
 
 const checkSignedOutSplashNavbarRenders = () => {
-  cy.visit('/pricing');
-  checkSignedOutSplashNavbarLinksRender();
-
   cy.visit('/terms');
   checkSignedOutSplashNavbarLinksRender();
 
@@ -83,8 +80,7 @@ const checkSignedInSplashNavbarRenders = () => {
 
 describe('Navbar logged in', () => {
   beforeEach(() => {
-    cy.auth(user.id);
-    cy.visit(`/`);
+    cy.auth(user.id).then(() => cy.visit(`/`));
   });
 
   it('should render product navbar', () => {
